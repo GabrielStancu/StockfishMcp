@@ -24,9 +24,11 @@ jobs:
           dotnet-version: '9.x'
 
       - name: Build with dotnet
+        working-directory:  ./src
         run: dotnet build --configuration Release
 
       - name: dotnet publish
+        working-directory:  ./src
         run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
 
       - name: Upload artifact for deployment job
@@ -38,6 +40,8 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
+    environment: Production
+    
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
@@ -62,4 +66,5 @@ jobs:
           app-name: 'stockfish-engine-swn-001'
           slot-name: 'Production'
           package: .
+
           
