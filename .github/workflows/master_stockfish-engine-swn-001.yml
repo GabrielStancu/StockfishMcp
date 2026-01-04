@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy ASP.Net Core app to Azure Web App - stockfish-engine-swn-001
+name: Build and Release Stockfish Engine API/MCP
 
 on:
   push:
@@ -24,9 +24,11 @@ jobs:
           dotnet-version: '9.x'
 
       - name: Build with dotnet
+        working-directory:  ./src
         run: dotnet build --configuration Release
 
       - name: dotnet publish
+        working-directory:  ./src
         run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
 
       - name: Upload artifact for deployment job
@@ -38,6 +40,7 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
+    environment: production
     
     steps:
       - name: Download artifact from build job
@@ -52,4 +55,5 @@ jobs:
           app-name: 'stockfish-engine-swn-001'
           slot-name: 'Production'
           package: .
+
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_5EF44FB1B14042089F1CAA78B222728E }}
