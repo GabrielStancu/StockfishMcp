@@ -24,11 +24,9 @@ jobs:
           dotnet-version: '9.x'
 
       - name: Build with dotnet
-        working-directory:  ./src
         run: dotnet build --configuration Release
 
       - name: dotnet publish
-        working-directory:  ./src
         run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
 
       - name: Upload artifact for deployment job
@@ -40,25 +38,13 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
-    environment: Production
     
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
-
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: .net-app
       
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_901EB915135E46FF924D0B314CDE5E7D }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_AA9E3532D3FB46759F5B6F8ED3464B26 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_89A3F6D5518F4C4891D7680A2B7DD97F }}
-
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
@@ -66,5 +52,4 @@ jobs:
           app-name: 'stockfish-engine-swn-001'
           slot-name: 'Production'
           package: .
-
-          
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_5EF44FB1B14042089F1CAA78B222728E }}
