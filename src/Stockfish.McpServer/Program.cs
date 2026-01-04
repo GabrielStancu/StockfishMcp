@@ -1,15 +1,24 @@
 using Stockfish.McpServer;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add structured logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole(); // logs to console in structured format
+builder.Logging.AddDebug();   // optional
+builder.Logging.SetMinimumLevel(LogLevel.Information);
+
 var app = builder.Build();
 
 var stockfishPath = builder.Configuration["Stockfish:Path"]
                     ?? throw new InvalidOperationException("Stockfish path not configured");
 var defaultDepth = int.Parse(builder.Configuration["Stockfish:DefaultDepth"] ?? "15");
-var stockfish = new StockfishClient(stockfishPath);
+var defaultMoveTimeMs = int.Parse(builder.Configuration["Stockfish:DefaultMoveTimeMs"] ?? "1000");
+var poolSize = int.Parse(builder.Configuration["Stockfish:PoolSize"] ?? "2");
+var stockfishPool = new StockfishPool(stockfishPath, poolSize);
 
 app.MapGet("/tools", () => Results.Ok(McpToolsService.Tools));
-app.MapPost("/call", async (HttpContext context) =>
+app.MapPost("/call", async (HttpContext context, ILogger<Program> logger) =>
 {
     try
     {
@@ -19,14 +28,14 @@ app.MapPost("/call", async (HttpContext context) =>
 
         var result = request.Tool switch
         {
-            "evaluate_position" =>
-                McpToolsService.HandleEvaluatePosition(request.Arguments, stockfish, defaultDepth),
+            "evaluate_position" => await
+                McpToolsService.HandleEvaluatePositionAsync(request.Arguments, stockfishPool, defaultDepth, defaultMoveTimeMs, logger),
 
-            "best_move" =>
-                McpToolsService.HandleBestMove(request.Arguments, stockfish, defaultDepth),
+            "best_move" => await
+                McpToolsService.HandleBestMoveAsync(request.Arguments, stockfishPool, defaultDepth, defaultMoveTimeMs, logger),
 
-            "evaluate_move" =>
-                McpToolsService.HandleEvaluateMove(request.Arguments, stockfish, defaultDepth),
+            "evaluate_move" => await 
+                McpToolsService.HandleEvaluateMoveAsync(request.Arguments, stockfishPool, defaultDepth, defaultMoveTimeMs, logger),
 
             _ => throw new ArgumentException($"Unknown tool: {request.Tool}")
         };
@@ -45,7 +54,7 @@ app.MapPost("/call", async (HttpContext context) =>
 
 app.Lifetime.ApplicationStopping.Register(() =>
 {
-    stockfish.Dispose();
+    stockfishPool.Dispose();
 });
 
 

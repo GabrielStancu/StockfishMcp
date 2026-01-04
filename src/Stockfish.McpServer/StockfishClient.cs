@@ -8,6 +8,8 @@ public sealed class StockfishClient : IDisposable
     private readonly StreamWriter _input;
     private readonly StreamReader _output;
 
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+
     public StockfishClient(string path)
     {
         _process = new Process
@@ -38,31 +40,46 @@ public sealed class StockfishClient : IDisposable
         WaitFor("readyok");
     }
 
-    public StockfishEvaluation EvaluatePosition(string fen, int depth)
+    public async Task<StockfishEvaluation> EvaluatePositionAsync(string fen, int? depth, int? moveTimeMs)
     {
-        Send("ucinewgame");
-        Send($"position fen {fen}");
-        Send($"go depth {depth}");
+        await _semaphore.WaitAsync();
 
-        return ReadEvaluation();
+        try
+        {
+            return Search($"position fen {fen}", depth, moveTimeMs);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
-    public StockfishEvaluation EvaluateMove(string fen, string move, int depth)
+    public async Task<StockfishEvaluation> EvaluateMoveAsync(string fen, string move, int? depth, int? moveTimeMs)
     {
-        Send("ucinewgame");
-        Send($"position fen {fen} moves {move}");
-        Send($"go depth {depth}");
+        await _semaphore.WaitAsync();
 
-        return ReadEvaluation();
+        try
+        {
+            return Search($"position fen {fen} moves {move}", depth, moveTimeMs);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
-    public string GetBestMove(string fen, int depth)
+    public async Task<string> GetBestMoveAsync(string fen, int? depth, int? moveTimeMs)
     {
-        Send("ucinewgame");
-        Send($"position fen {fen}");
-        Send($"go depth {depth}");
+        await _semaphore.WaitAsync();
 
-        return ReadEvaluation().BestMove;
+        try
+        {
+            return Search($"position fen {fen}", depth, moveTimeMs)?.BestMove ?? string.Empty;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     private StockfishEvaluation ReadEvaluation()
@@ -101,6 +118,17 @@ public sealed class StockfishClient : IDisposable
         }
 
         return new StockfishEvaluation(scoreCp, mate, bestMove);
+    }
+
+    private StockfishEvaluation Search(string positionCommand, int? depth, int? moveTimeMs)
+    {
+        Send("ucinewgame");
+        Send(positionCommand);
+        Send(moveTimeMs.HasValue 
+            ? $"go movetime {moveTimeMs.Value}" 
+            : $"go depth {depth!.Value}");
+
+        return ReadEvaluation();
     }
 
     private void Send(string command)
